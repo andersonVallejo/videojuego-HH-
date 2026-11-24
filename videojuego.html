@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#3a1268">
+<title>Lluvia de Corazones 💕</title>
+<style>
+  /* ============================================================
+     ESTILOS
+     ============================================================ */
+
+  :root {
+    --rosa-fuerte: #e64980;
+    --rosa-suave: #ff9ec4;
+    --morado: #3a1268;
+    --morado-claro: #6c3fb5;
+    --dorado: #ffd166;
+    --blanco: #ffffff;
+    --sombra: rgba(0,0,0,0.35);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    overscroll-behavior: none; /* evita el "rebote"/pull-to-refresh en celulares */
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh; /* mejor cálculo de alto real en móviles */
+    background:
+      radial-gradient(ellipse at top, rgba(75,29,128,0.55) 0%, rgba(35,7,63,0.75) 55%, rgba(18,2,31,0.85) 100%),
+      url("kitty.jpg") center center / cover no-repeat fixed;
+    background-color: #23073f; /* respaldo por si kitty.jpg no carga */
+    font-family: 'Trebuchet MS', 'Segoe UI', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-x: hidden;
+    padding: 0 10px 24px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    position: relative;
+    user-select: none;
+    touch-action: pan-y; /* deja hacer scroll vertical fuera del canvas, pero controlamos el resto */
+  }
+
+  /* Estrellitas de fondo decorativas (puro CSS, no afecta el juego) */
+  .estrella {
+    position: fixed;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.8);
+    pointer-events: none;
+    animation: parpadeo 3s ease-in-out infinite;
+  }
+  @keyframes parpadeo {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.9; }
+  }
+
+  /* Corazoncitos flotando muy lento de fondo, puro decorativo */
+  .corazon-flotante-fondo {
+    position: fixed;
+    bottom: -40px;
+    pointer-events: none;
+    opacity: 0.16;
+    z-index: 0;
+    animation-name: flotarCorazonFondo;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+  @keyframes flotarCorazonFondo {
+    from { transform: translateY(0) translateX(0) rotate(0deg); }
+    to   { transform: translateY(-115vh) translateX(20px) rotate(25deg); }
+  }
+
+  /* Indicadores de power-ups activos, en el panel superior */
+  #poderesActivos {
+    display: flex;
+    gap: 4px;
+    font-size: 15px;
+  }
+  #poderesActivos span {
+    animation: titilarChispa 1s ease-in-out infinite;
+  }
+
+  header {
+    text-align: center;
+    margin-top: max(16px, env(safe-area-inset-top));
+    padding: 0 16px;
+  }
+
+  h1 {
+    color: var(--blanco);
+    margin: 6px 0 2px;
+    font-size: clamp(22px, 6vw, 34px);
+    text-shadow: 2px 2px 6px var(--sombra);
+    letter-spacing: 0.5px;
+  }
+
+  .subtitulo {
+    color: var(--rosa-suave);
+    margin: 0 0 10px;
+    font-size: clamp(12px, 3.2vw, 14px);
+    font-style: italic;
+  }
+
+  /* Barra superior con puntaje, vidas, combo y controles */
+  #panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    backdrop-filter: blur(4px);
+    padding: 7px 14px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+    color: var(--blanco);
+    font-size: clamp(12.5px, 3.4vw, 15px);
+    max-width: 94vw;
+  }
+
+  #panel .dato { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  #panel .dato b {
+    color: var(--dorado);
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 1.08em;
+    letter-spacing: 0.3px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+
+  #vidasIconos { display: flex; gap: 2px; font-size: 15px; }
+
+  #vidasIconos.vidas-pulso {
+    animation: pulsoVidas 0.55s ease;
+  }
+  @keyframes pulsoVidas {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.4); filter: drop-shadow(0 0 6px rgba(126,224,138,0.9)); }
+    100% { transform: scale(1); }
+  }
+
+  #puntajeTexto.puntaje-pulso {
+    animation: pulsoPuntaje 0.4s ease;
+  }
+  @keyframes pulsoPuntaje {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.35); color: var(--rosa-suave); }
+    100% { transform: scale(1); }
+  }
+
+  #comboTexto {
+    color: var(--dorado);
+    font-weight: bold;
+    min-width: 60px;
+    text-align: left;
+    visibility: hidden;
+  }
+
+  /* Botones circulares de control (música, pausa, mensaje) */
+  .boton-icono {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .boton-icono:hover { background: rgba(255,255,255,0.3); transform: scale(1.08); }
+  .boton-icono:active { transform: scale(0.9); }
+  .boton-icono.silenciado {
+    background: rgba(230,73,128,0.25);
+    border-color: rgba(230,73,128,0.6);
+  }
+
+  @media (max-width: 480px) {
+    .boton-icono { width: 46px; height: 46px; min-width: 46px; font-size: 18px; }
+  }
+
+  /* Contenedor del canvas, permite superponer las pantallas de inicio/fin */
+  #zonaJuego {
+    position: relative;
+    width: min(480px, 94vw);
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 480 / 600;
+    background:
+      linear-gradient(to bottom, rgba(35,7,63,0.55), rgba(15,2,30,0.7)),
+      url("kitty.jpg") center center / cover no-repeat;
+    background-color: #23073f;
+    border: 3px solid var(--rosa-suave);
+    border-radius: 14px;
+    box-shadow: 0 8px 28px var(--sombra);
+    touch-action: none; /* el canvas sí bloquea el scroll, para que jugar no mueva la página */
+  }
+
+  /* Controles táctiles virtuales (solo se muestran en pantallas táctiles) */
+  #controlesTactiles {
+    display: none;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 10px;
+    gap: 14px;
+  }
+  #controlesTactiles.visible { display: flex; }
+
+  .boton-direccion {
+    flex: 1;
+    padding: 22px 0;
+    font-size: 30px;
+    min-height: 60px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.12);
+    color: white;
+    backdrop-filter: blur(4px);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .boton-direccion:active { background: rgba(255,255,255,0.3); transform: scale(0.97); }
+
+  /* Pantallas superpuestas (inicio / fin de juego / pausa / mensaje) */
+  .pantalla {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(10, 2, 25, 0.75);
+    border-radius: 14px;
+    backdrop-filter: blur(2px);
+    z-index: 5;
+    padding: 12px;
+  }
+  .oculto { display: none !important; }
+
+  .tarjeta {
+    background: var(--blanco);
+    border-radius: 18px;
+    padding: 24px 20px;
+    text-align: center;
+    max-width: 320px;
+    width: 92%;
+    max-height: 90%;
+    overflow-y: auto;
+    box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+    animation: aparecer 0.35s ease;
+  }
+  @keyframes aparecer {
+    from { opacity: 0; transform: translateY(14px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .tarjeta h2 {
+    margin: 0 0 8px;
+    color: var(--rosa-fuerte);
+    font-size: clamp(20px, 5vw, 24px);
+  }
+  .tarjeta p { color: #444; font-size: clamp(13.5px, 3.6vw, 15px); margin: 6px 0; line-height: 1.5; }
+  .tarjeta .destacado {
+    color: var(--rosa-fuerte);
+    font-weight: bold;
+    font-size: 17px;
+  }
+  .tarjeta .record { color: var(--morado-claro); font-size: 13px; }
+
+  .boton-principal {
+    margin-top: 14px;
+    padding: 13px 26px;
+    font-size: 16px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--rosa-fuerte), #ff6f91);
+    color: white;
+    font-weight: bold;
+    box-shadow: 0 6px 16px rgba(230,73,128,0.45);
+    transition: transform 0.15s ease;
+    width: 100%;
+    max-width: 260px;
+  }
+  .boton-principal:hover { transform: translateY(-2px); }
+  .boton-principal:active { transform: translateY(0) scale(0.98); }
+
+  .boton-empezar-destacado {
+    font-size: 19px;
+    padding: 17px 26px;
+    animation: pulsoBotonEmpezar 1.8s ease-in-out infinite;
+  }
+  @keyframes pulsoBotonEmpezar {
+    0%, 100% { box-shadow: 0 6px 16px rgba(230,73,128,0.45); transform: scale(1); }
+    50% { box-shadow: 0 6px 26px rgba(230,73,128,0.75); transform: scale(1.03); }
+  }
+
+  .boton-secundario {
+    margin-top: 10px;
+    padding: 10px 20px;
+    font-size: 14px;
+    border-radius: 999px;
+    border: 1.5px solid var(--rosa-fuerte);
+    cursor: pointer;
+    background: transparent;
+    color: var(--rosa-fuerte);
+    font-weight: bold;
+    width: 100%;
+    max-width: 260px;
+  }
+  .boton-secundario:active { background: rgba(230,73,128,0.08); }
+
+  .instrucciones {
+    font-size: 12px;
+    color: #777;
+    margin-top: 12px;
+    line-height: 1.5;
+  }
+
+  /* Tarjeta especial para la carta de amor */
+  .tarjeta-mensaje {
+    text-align: left;
+    max-width: 340px;
+  }
+  .tarjeta-mensaje h2 { text-align: center; }
+  #textoMensajeAmor {
+    white-space: pre-line;
+    color: #333;
+    font-size: 14.5px;
+    line-height: 1.65;
+    border-left: 3px solid var(--rosa-suave);
+    padding-left: 12px;
+    margin: 12px 0;
+  }
+  .firma {
+    text-align: right;
+    font-style: italic;
+    color: var(--rosa-fuerte);
+    font-weight: bold;
+    margin-top: 4px;
+  }
+
+  footer {
+    color: rgba(255,255,255,0.55);
+    font-size: 11px;
+    margin-top: 14px;
+    text-align: center;
+    padding: 0 20px;
+  }
+
+  /* Confeti simple para nuevo récord */
+  .confeti {
+    position: fixed;
+    top: -10px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 20;
+    animation: caerConfeti linear forwards;
+  }
+  @keyframes caerConfeti {
+    to { transform: translateY(110vh) rotate(540deg); opacity: 0.2; }
+  }
+
+  /* ============ Mejoras pantalla de "Perdiste" ============ */
+
+  /* Fondo más oscuro y dramático solo para la pantalla de fin de juego */
+  #overlay.pantalla {
+    background: radial-gradient(circle at 50% 15%, rgba(75,29,128,0.55), rgba(6,1,14,0.9) 72%);
+  }
+
+  /* Corazoncitos cayendo detrás de la tarjeta de "Perdiste" */
+  .corazones-perder-fondo {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    border-radius: 14px;
+  }
+  .corazon-perder-item {
+    position: absolute;
+    top: -10%;
+    opacity: 0.8;
+    animation-name: caerCorazonFondo;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+  @keyframes caerCorazonFondo {
+    from { transform: translateY(-10%) rotate(0deg); }
+    to   { transform: translateY(760px) rotate(20deg); }
+  }
+
+  /* Corazón roto que se repara al perder, arriba del texto "Perdiste" */
+  .corazon-roto-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2px;
+    position: relative;
+    z-index: 1;
+  }
+  .corazon-roto { width: 50px; height: 46px; }
+  .corazon-roto .mitad-izq,
+  .corazon-roto .mitad-der {
+    transition: transform 1s cubic-bezier(.34,1.56,.64,1);
+    transform-origin: center;
+  }
+  .corazon-roto .mitad-izq { transform: translate(-6px, -4px) rotate(-10deg); }
+  .corazon-roto .mitad-der { transform: translate(6px, -4px) rotate(10deg); }
+  .corazon-roto.reparado .mitad-izq,
+  .corazon-roto.reparado .mitad-der {
+    transform: translate(0,0) rotate(0deg);
+  }
+  .corazon-roto.reparado { animation: latido 0.8s ease 1s 2; }
+  @keyframes latido {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.14); }
+  }
+
+  /* Medalla según el combo máximo logrado */
+  .medalla-combo {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+    font-size: 12.5px;
+    background: rgba(108,63,181,0.1);
+    border: 1px solid rgba(108,63,181,0.25);
+    padding: 4px 12px;
+    border-radius: 999px;
+    color: var(--morado-claro);
+    font-weight: bold;
+  }
+
+  /* Entrada con más rebote, solo para la tarjeta de "Perdiste" */
+  .tarjeta-perder {
+    position: relative;
+    z-index: 1;
+    animation: aparecerRebote 0.6s cubic-bezier(.36,1.4,.4,1);
+  }
+  @keyframes aparecerRebote {
+    0%   { opacity: 0; transform: translateY(-36px) scale(0.85); }
+    55%  { opacity: 1; transform: translateY(6px) scale(1.03); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* ============ Pantalla festiva cuando SÍ se supera el récord ============ */
+  #overlay.pantalla.es-record {
+    background: radial-gradient(circle at 50% 15%, rgba(255,209,102,0.35), rgba(58,18,104,0.85) 70%);
+  }
+  .tarjeta-perder.tarjeta-record {
+    border: 2px solid var(--dorado);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.45), 0 0 26px rgba(255,209,102,0.55);
+  }
+  .tarjeta-perder.tarjeta-record #tituloResultado {
+    color: #d99a00 !important;
+  }
+  .corona-record {
+    font-size: 40px;
+    display: block;
+    margin-bottom: 2px;
+    animation: flotarCorona 1.8s ease-in-out infinite;
+  }
+  @keyframes flotarCorona {
+    0%, 100% { transform: translateY(0) rotate(-4deg); }
+    50% { transform: translateY(-6px) rotate(4deg); }
+  }
+
+  /* ============ Unicornio volador al superar el récord ============ */
+  /* Solo anima "transform" y "opacity" (nada de layout/repaint pesado),
+     así que corre suave incluso en celulares modestos. */
+  .unicornio-volador {
+    position: fixed;
+    left: 0;
+    z-index: 999;
+    pointer-events: none;
+    will-change: transform;
+  }
+  .unicornio-volador.hacia-derecha {
+    top: 20%;
+    transform: translateX(-20vw) translateY(0);
+    animation: volarDerecha 3.6s ease-in-out forwards;
+  }
+  .unicornio-volador.hacia-izquierda {
+    top: 52%;
+    transform: translateX(120vw) translateY(0);
+    animation: volarIzquierda 3.6s ease-in-out forwards;
+  }
+  .unicornio-volador img {
+    display: block;
+    width: 150px;
+    height: auto;
+    filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+  }
+  .unicornio-volador.hacia-derecha img {
+    transform: scaleX(-1); /* de frente hacia donde vuela (derecha) */
+  }
+  /* hacia-izquierda no necesita voltearse: la imagen ya mira naturalmente a la izquierda */
+
+  .chispa-unicornio {
+    position: absolute;
+    font-size: 15px;
+    opacity: 0;
+    animation: titilarChispa 0.9s ease-in-out infinite;
+    will-change: opacity, transform;
+  }
+  .hacia-derecha .chispa-unicornio:nth-of-type(1) { top: 4px;  left: -18px; }
+  .hacia-derecha .chispa-unicornio:nth-of-type(2) { top: 30px; left: -36px; }
+  .hacia-derecha .chispa-unicornio:nth-of-type(3) { top: 58px; left: -14px; }
+  .hacia-derecha .chispa-unicornio:nth-of-type(4) { top: 16px; left: -50px; }
+  .hacia-derecha .chispa-unicornio:nth-of-type(5) { top: 46px; left: -62px; }
+
+  .hacia-izquierda .chispa-unicornio:nth-of-type(1) { top: 4px;  right: -18px; }
+  .hacia-izquierda .chispa-unicornio:nth-of-type(2) { top: 30px; right: -36px; }
+  .hacia-izquierda .chispa-unicornio:nth-of-type(3) { top: 58px; right: -14px; }
+  .hacia-izquierda .chispa-unicornio:nth-of-type(4) { top: 16px; right: -50px; }
+  .hacia-izquierda .chispa-unicornio:nth-of-type(5) { top: 46px; right: -62px; }
+
+  @keyframes titilarChispa {
+    0%, 100% { opacity: 0; transform: scale(0.6); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes volarDerecha {
+    0%   { transform: translateX(-20vw) translateY(0); }
+    20%  { transform: translateX(15vw) translateY(-34px); }
+    40%  { transform: translateX(45vw) translateY(14px); }
+    60%  { transform: translateX(70vw) translateY(-26px); }
+    80%  { transform: translateX(95vw) translateY(8px); }
+    100% { transform: translateX(125vw) translateY(-14px); }
+  }
+
+  @keyframes volarIzquierda {
+    0%   { transform: translateX(120vw) translateY(0); }
+    20%  { transform: translateX(85vw) translateY(-30px); }
+    40%  { transform: translateX(55vw) translateY(16px); }
+    60%  { transform: translateX(30vw) translateY(-22px); }
+    80%  { transform: translateX(5vw) translateY(10px); }
+    100% { transform: translateX(-25vw) translateY(-12px); }
+  }
+
+  /* ============ Caja para que ella pueda responder el mensaje ============ */
+  .respuesta-caja {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--rosa-suave);
+    text-align: left;
+  }
+  .respuesta-label {
+    display: block;
+    font-size: 13.5px;
+    font-weight: bold;
+    color: var(--rosa-fuerte);
+    margin-bottom: 6px;
+  }
+  .respuesta-textarea {
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    border: 1.5px solid var(--rosa-suave);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: #333;
+    box-sizing: border-box;
+  }
+  .respuesta-textarea:focus {
+    outline: none;
+    border-color: var(--rosa-fuerte);
+  }
+  .respuesta-nota {
+    font-size: 11px;
+    color: #999;
+    margin-top: 4px;
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 480px) {
+    #panel { gap: 8px; padding: 6px 10px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .estrella, .tarjeta, .confeti,
+    .corazon-perder-item, .corazon-roto, .corazon-roto.reparado, .tarjeta-perder,
+    .unicornio-volador, .chispa-unicornio, #vidasIconos.vidas-pulso, #puntajeTexto.puntaje-pulso,
+    .corazon-flotante-fondo, .boton-empezar-destacado, #poderesActivos span {
+      animation: none !important;
+    }
+    .unicornio-volador { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <h1>Atrapa mis corazones 💘</h1>
+    <p class="subtitulo">Cada corazón que atrapas es un "te amo" más</p>
+  </header>
+
+  <!-- Panel de estado: puntaje, vidas, combo, controles y power-ups activos -->
+  <div id="panel">
+    <div class="dato">🏆 <b id="puntajeTexto">0</b></div>
+    <div class="dato">⭐ <b id="recordTexto">0</b></div>
+    <div class="dato">🎚️ <b id="nivelTexto">1</b></div>
+    <div class="dato" id="vidasIconos"></div>
+    <div class="dato" id="comboTexto">Combo x1</div>
+    <div class="dato" id="poderesActivos"></div>
+    <button class="boton-icono" id="botonMusica" title="Silenciar / activar música" aria-label="Silenciar o activar música">🎵</button>
+    <button class="boton-icono" id="botonPausa" title="Pausar" aria-label="Pausar el juego">⏸️</button>
+    <button class="boton-icono" id="botonMensajeTop" title="Leer tu mensaje" aria-label="Leer mensaje para ti">💌</button>
+  </div>
+
+  <div id="zonaJuego">
+    <canvas id="juego" width="480" height="600" aria-label="Área del juego"></canvas>
+
+    <!-- Pantalla de inicio -->
+    <div class="pantalla" id="pantallaInicio">
+      <div class="tarjeta">
+        <h2>Mi vida lista para jugar? 💗</h2>
+        <p>Muévete, mi vida 💗 ¡no dejes que se escapen!</p>
+        <p class="destacado">¡Los corazones dorados valen triple! ✨</p>
+        <p class="record" id="recordGuardadoTexto"></p>
+        <button class="boton-principal boton-empezar-destacado" id="botonEmpezar">Empezar a jugar 💘</button>
+        <button class="boton-secundario" id="botonMensajeInicio">Antes de jugar, lee esto 💌</button>
+       
+      </div>
+    </div>
+
+    <!-- Pantalla de fin de juego -->
+    <div class="pantalla oculto" id="overlay">
+      <div class="corazones-perder-fondo" id="corazonesPerderFondo"></div>
+      <div class="tarjeta tarjeta-perder">
+        <div class="corazon-roto-wrap" id="corazonRotoWrap">
+          <svg class="corazon-roto" id="corazonRotoSvg" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
+            <path class="mitad-izq" d="M50 85 C 20 60, 5 40, 5 22 C 5 8, 16 0, 28 0 C 38 0, 46 6, 50 16 L 50 85 Z" fill="#e64980"/>
+            <path class="mitad-der" d="M50 85 C 80 60, 95 40, 95 22 C 95 8, 84 0, 72 0 C 62 0, 54 6, 50 16 L 50 85 Z" fill="#ff6f91"/>
+          </svg>
+        </div>
+        <span class="corona-record oculto" id="coronaRecord">👑</span>
+        <p style="font-size:26px; margin:0 0 6px; color:var(--rosa-fuerte);" id="tituloResultado">Perdiste 😢</p>
+        <p id="textoAlerta"></p>
+        <p class="record" id="textoRecord"></p>
+        <div id="medallaComboContenedor"></div>
+        <p style="color:var(--rosa-fuerte); font-weight:bold; font-size:18px; margin:10px 0 4px;">Te amo mucho ❤️</p>
+        <button class="boton-principal" id="botonReintentar">Jugar de nuevo 🔁</button>
+        <button class="boton-secundario" id="botonCompartir">Compartir mi puntaje 📤</button>
+        <button class="boton-secundario" id="botonMensajeFin">Lee esto antes de irte 💌</button>
+      </div>
+    </div>
+
+    <!-- Pantalla de pausa -->
+    <div class="pantalla oculto" id="pantallaPausa">
+      <div class="tarjeta">
+        <h2>Pausa ⏸️</h2>
+        <p>aprovechemos que pausaste el juego para decirte que TE AMO</p>
+        <button class="boton-principal" id="botonReanudar">Continuar 💗</button>
+      </div>
+    </div>
+
+    <!-- Pantalla del mensaje / carta de amor -->
+    <div class="pantalla oculto" id="pantallaMensaje">
+      <div class="tarjeta tarjeta-mensaje">
+        <h2 id="tituloMensaje">💌 Para ti</h2>
+        <p id="textoMensajeAmor"></p>
+        <p class="firma" id="firmaMensaje"></p>
+
+        <div class="respuesta-caja">
+          <label class="respuesta-label" for="textoRespuesta">¿Quieres responderle? 💬</label>
+          <textarea id="textoRespuesta" class="respuesta-textarea" placeholder="Escribe aquí lo que quieras decirle..."></textarea>
+          <button class="boton-principal" id="botonEnviarRespuesta" type="button">Enviar mi respuesta 💌</button>
+          <p class="respuesta-nota">Se abrirá WhatsApp con tu mensaje listo para enviar.</p>
+        </div>
+
+        <button class="boton-principal" id="botonCerrarMensaje">Cerrar y seguir jugando 💗</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controles táctiles virtuales, aparecen solo en pantallas táctiles -->
+  <div id="controlesTactiles">
+    <button class="boton-direccion" id="botonIzquierda" aria-label="Mover a la izquierda">⬅️</button>
+    <button class="boton-direccion" id="botonDerecha" aria-label="Mover a la derecha">➡️</button>
+  </div>
+
+  
+  <!-- ============================================================
+       AUDIO DE FONDO
+       IMPORTANTE: por temas de derechos de autor, este archivo NO
+       incluye ninguna grabación real. Debes agregar tú mismo un
+       archivo de audio con permiso de uso en la misma carpeta que
+       este HTML, con el nombre indicado abajo. Si el archivo no
+       existe, el juego funciona igual, simplemente sin música.
+       ============================================================ -->
+  <audio id="musicaFondo" src="elvis_presley.mp3" loop preload="auto"></audio>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN DEL JUEGO   <<< AQUÍ ES DONDE MÁS VAS A MODIFICAR >>>
+   ============================================================ */
+
+// Cara/emoji dentro de cada corazón normal
+const caraDentroDelCorazon = "😍"; // <<< MODIFICA AQUÍ >>>
+
+// Foto real dentro de los corazones (debe estar en la misma carpeta)
+const usarFoto = true; // <<< MODIFICA AQUÍ >>> false para volver al emoji
+const fotoElla = new Image();
+fotoElla.src = "lleli.jpeg"; // <<< MODIFICA AQUÍ >>>
+
+// Foto del jugador, se dibuja arriba del personaje
+const usarFotoJugador = true; // <<< MODIFICA AQUÍ >>>
+const fotoJugador = new Image();
+fotoJugador.src = "pareja.jpeg"; // <<< MODIFICA AQUÍ >>>
+
+// Vidas iniciales
+const VIDAS_INICIALES = 3; // <<< MODIFICA AQUÍ >>>
+
+// Máximo de vidas que se pueden acumular atrapando corazones de vida extra
+const VIDAS_MAXIMAS = 6; // <<< MODIFICA AQUÍ >>>
+
+// Velocidad base de caída (sube con el puntaje para más dificultad)
+const velocidadBase = 2; // <<< MODIFICA AQUÍ >>>
+
+// Cada cuántos puntos sube un poco la dificultad
+const PUNTOS_POR_NIVEL = 8; // <<< MODIFICA AQUÍ >>>
+
+// Probabilidad de que aparezca un corazón dorado (bonus x3)
+const PROBABILIDAD_DORADO = 0.12; // <<< MODIFICA AQUÍ >>> (0 a 1)
+
+// Probabilidad de que caiga un corazón de "vida extra" (poco frecuente, a propósito)
+const PROBABILIDAD_VIDA_EXTRA = 0.09; // <<< MODIFICA AQUÍ >>> (0 a 1)
+
+// Probabilidad de que caiga un corazón de "power-up" (imán / congelado / x2)
+const PROBABILIDAD_PODER = 0.06; // <<< MODIFICA AQUÍ >>> (0 a 1)
+
+// Cuánto duran los power-ups activos, en milisegundos
+const DURACION_PODER_MS = 6000; // <<< MODIFICA AQUÍ >>> (6000 = 6 segundos)
+
+// Clave usada para guardar el récord en este navegador (no se ve, es interna)
+const CLAVE_RECORD_LOCAL = "lluviaCorazones_recordHellen"; // <<< MODIFICA AQUÍ >>> si quieres reiniciar el récord guardado, cambia este texto
+
+// --------------------------------------------------------------
+// EL MENSAJE PARA TU NOVIA. Cambia el título, el texto y la firma.
+// Puedes usar saltos de línea normales, se respetan tal cual.
+// --------------------------------------------------------------
+const TITULO_MENSAJE = "💌 Para ti, mi amor"; // <<< MODIFICA AQUÍ >>>
+const TEXTO_MENSAJE_AMOR =
+`Para ti, mi Princesita, mi Capitán Chiquito ❤️
+Hice este pequeño juego con una sola misión: sacarte una sonrisa.
+ Pero si pudiera, crearía mil juegos más, solo para verte feliz.
+Cada corazón que aparece representa un pensamiento bonito sobre ti,
+ un recuerdo juntos o una razón más por la que te amo. Y créeme, la
+  pantalla nunca tendría suficiente espacio para todos.
+Gracias por llegar a mi vida y convertirte en alguien tan especial
+ para mí. Gracias por tu cariño, tu paciencia, tus ocurrencias y por 
+ hacerme sentir amado de una manera que nunca imaginé.
+No importa cuántos corazones logre atrapar aquí, porque ya
+ tengo el más valioso, el que cuidaría toda la vida: el tuyo.
+Te amo más de lo que las palabras pueden explicar, Hellen. 💖
+Siempre tuyo. 🌹✨`; // <<< MODIFICA AQUÍ >>> escribe aquí tu mensaje real
+const FIRMA_MENSAJE = "— con todo mi cariño "; // <<< MODIFICA AQUÍ >>>
+
+// Mostrar automáticamente el mensaje una vez, la primera vez que se pierde
+const MOSTRAR_MENSAJE_AUTOMATICO_AL_PERDER = false; // <<< MODIFICA AQUÍ >>>
+
+// --------------------------------------------------------------
+// Tu número de WhatsApp para que ella te pueda responder el mensaje.
+// Escribe SOLO números, con el código de país, sin +, sin espacios,
+// sin guiones. Ejemplo Ecuador: "593987654321"
+// --------------------------------------------------------------
+const NUMERO_WHATSAPP = "593979290747"; // <<< MODIFICA AQUÍ >>> pon tu número real
+
+// Imagen del unicornio que vuela por la pantalla al superar el récord.
+// Debe estar en la misma carpeta que este HTML (viene incluida, se llama "unicornio.png")
+const RUTA_UNICORNIO = "unicornio.png"; // <<< MODIFICA AQUÍ >>> si le cambias el nombre al archivo
+
+// Mensaje final según el puntaje logrado
+function obtenerMensajeFinal(puntaje) {
+  if (puntaje >= 30) {
+    return "¡Increíble! Atrapaste " + puntaje + " corazones... como atrapaste el mío para siempre 💕";
+  } else if (puntaje >= 15) {
+    return "¡Muy bien! " + puntaje + " corazones atrapados. Cada uno es un 'te quiero' 💗";
+  } else {
+    return "Atrapaste " + puntaje + " corazones, ¡pero el más grande ya lo tienes tú! ❤️";
+  }
+} // <<< MODIFICA AQUÍ >>>
+
+/* ---------- Guardar/cargar el récord en este navegador (persiste aunque cierre la página) ---------- */
+function cargarRecordGuardado() {
+  try {
+    const guardado = localStorage.getItem(CLAVE_RECORD_LOCAL);
+    const numero = guardado ? parseInt(guardado, 10) : 0;
+    return isNaN(numero) ? 0 : numero;
+  } catch (error) {
+    return 0; // si el navegador bloquea localStorage, el juego sigue funcionando igual
+  }
+}
+
+function guardarRecord(valor) {
+  try {
+    localStorage.setItem(CLAVE_RECORD_LOCAL, String(valor));
+  } catch (error) {
+    console.warn("No se pudo guardar el récord localmente:", error);
+  }
+}
+
+
+/* ============================================================
+   LÓGICA DEL JUEGO
+   ============================================================ */
+
+const canvas = document.getElementById("juego");
+const ctx = canvas.getContext("2d");
+
+// --- Elementos de interfaz ---
+const elPuntaje = document.getElementById("puntajeTexto");
+const elRecord = document.getElementById("recordTexto");
+const elVidasIconos = document.getElementById("vidasIconos");
+const elCombo = document.getElementById("comboTexto");
+const pantallaInicio = document.getElementById("pantallaInicio");
+const overlay = document.getElementById("overlay");
+const pantallaPausa = document.getElementById("pantallaPausa");
+const pantallaMensaje = document.getElementById("pantallaMensaje");
+const botonMusica = document.getElementById("botonMusica");
+const botonPausa = document.getElementById("botonPausa");
+const musicaFondo = document.getElementById("musicaFondo");
+const controlesTactiles = document.getElementById("controlesTactiles");
+
+// --- Detección de dispositivo táctil (para mostrar botones virtuales) ---
+const esTactil = ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+if (esTactil) {
+  controlesTactiles.classList.add("visible");
+  const elInstrucciones = document.getElementById("textoInstrucciones");
+  if (elInstrucciones) {
+    elInstrucciones.innerHTML =
+      "Arrastra el dedo sobre el juego, o usa los botones ⬅️ ➡️ de abajo<br>Toca ⏸️ para pausar en cualquier momento";
+  }
+}
+
+// --- Estado del jugador ---
+// (ya no es una barra/caja: el "jugador" es directamente el muñeco/foto,
+// así que su ancho y alto ahora definen el tamaño del personaje mismo)
+const TAMANO_PERSONAJE = 56; // <<< MODIFICA AQUÍ >>> tamaño del muñeco en pixeles
+const jugador = {
+  x: canvas.width / 2 - TAMANO_PERSONAJE / 2,
+  y: canvas.height - TAMANO_PERSONAJE - 6,
+  ancho: TAMANO_PERSONAJE,
+  alto: TAMANO_PERSONAJE,
+  velocidad: 8
+};
+
+// --- Estado general del juego ---
+let corazones = [];
+let particulas = [];       // pequeñas chispas al atrapar un corazón
+let textosFlotantes = [];  // mensajes tipo "+1 Vida" o "¡Más rápido!" que suben y se desvanecen
+let ondas = [];             // ondas expansivas al ganar una vida extra o power-up
+let puntaje = 0;
+let record = cargarRecordGuardado(); // se guarda en este navegador, sobrevive entre partidas y sesiones
+let totalCorazonesHistorico = 0; // corazones atrapados en total durante toda la sesión, todas las partidas
+let vidas = VIDAS_INICIALES;
+let combo = 0;              // corazones seguidos atrapados sin fallar
+let comboMaximo = 0;
+let juegoActivo = false;    // true solo mientras se está jugando (no en menú/pausa/fin)
+let juegoIniciado = false;  // true una vez que se presionó "Empezar"
+let pausado = false;
+let musicaSilenciada = false;
+let sacudida = 0;           // efecto de "screen shake" al perder una vida
+let teclas = {};
+let idIntervaloSpawns = null;
+let yaSeMostroMensajeAutomatico = false;
+let pantallaMensajeVieneDePausaAutomatica = false;
+
+// --- Power-ups activos (marcas de tiempo; 0 = no activo) ---
+let imanActivoHasta = 0;
+let congeladoActivoHasta = 0;
+let x2ActivoHasta = 0;
+const TIPOS_PODER = ["iman", "congelado", "x2"];
+
+/* ---------- Sonido sintetizado (no usa ninguna grabación con derechos) ---------- */
+let contextoAudio = null;
+function obtenerContextoAudio() {
+  if (!contextoAudio) {
+    const AudioContextClase = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClase) contextoAudio = new AudioContextClase();
+  }
+  return contextoAudio;
+}
+
+function reproducirTono(frecuencia, duracionMs, tipoOnda, volumen) {
+  const ctxAudio = obtenerContextoAudio();
+  if (!ctxAudio) return;
+  try {
+    const oscilador = ctxAudio.createOscillator();
+    const ganancia = ctxAudio.createGain();
+    oscilador.type = tipoOnda || "sine";
+    oscilador.frequency.value = frecuencia;
+    ganancia.gain.value = volumen || 0.06;
+    oscilador.connect(ganancia);
+    ganancia.connect(ctxAudio.destination);
+    oscilador.start();
+    ganancia.gain.exponentialRampToValueAtTime(0.0001, ctxAudio.currentTime + duracionMs / 1000);
+    oscilador.stop(ctxAudio.currentTime + duracionMs / 1000);
+  } catch (error) {
+    console.warn("No se pudo reproducir el efecto de sonido:", error);
+  }
+}
+
+function sonidoAtrapar(dorado) {
+  reproducirTono(dorado ? 880 : 660, 130, "triangle", 0.05);
+}
+function sonidoPerderVida() {
+  reproducirTono(180, 220, "sawtooth", 0.05);
+}
+function sonidoVidaExtra() {
+  reproducirTono(660, 110, "triangle", 0.05);
+  setTimeout(() => reproducirTono(880, 170, "triangle", 0.05), 90);
+}
+function sonidoPoder(tipo) {
+  if (tipo === "iman") {
+    reproducirTono(740, 100, "sine", 0.05);
+    setTimeout(() => reproducirTono(950, 140, "sine", 0.05), 90);
+  } else if (tipo === "congelado") {
+    reproducirTono(300, 160, "sine", 0.045);
+    setTimeout(() => reproducirTono(240, 220, "sine", 0.045), 120);
+  } else {
+    reproducirTono(600, 90, "sawtooth", 0.045);
+    setTimeout(() => reproducirTono(900, 90, "sawtooth", 0.045), 80);
+    setTimeout(() => reproducirTono(1200, 140, "sawtooth", 0.045), 160);
+  }
+}
+function sonidoSubeNivel() {
+  reproducirTono(500, 90, "square", 0.035);
+  setTimeout(() => reproducirTono(700, 110, "square", 0.035), 80);
+}
+function sonidoFinDeJuego(esRecord) {
+  if (esRecord) {
+    reproducirTono(523, 140, "triangle", 0.05);
+    setTimeout(() => reproducirTono(659, 140, "triangle", 0.05), 130);
+    setTimeout(() => reproducirTono(784, 240, "triangle", 0.05), 260);
+  } else {
+    reproducirTono(300, 180, "sine", 0.05);
+    setTimeout(() => reproducirTono(220, 260, "sine", 0.05), 160);
+  }
+}
+
+/* ---------- Vibración (retroalimentación háptica en celulares compatibles) ---------- */
+function vibrar(patron) {
+  if (navigator.vibrate) {
+    try { navigator.vibrate(patron); } catch (error) { /* no pasa nada si el navegador lo bloquea */ }
+  }
+}
+
+/* ---------- Entrada del usuario: teclado ---------- */
+document.addEventListener("keydown", (e) => {
+  teclas[e.key] = true;
+  if (e.key.toLowerCase() === "p") alternarPausa();
+});
+document.addEventListener("keyup", (e) => { teclas[e.key] = false; });
+
+/* ---------- Entrada del usuario: mouse y arrastre táctil sobre el canvas ---------- */
+canvas.addEventListener("mousemove", moverConPuntero);
+
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  moverConToque(e);
+}, { passive: false });
+
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  moverConToque(e);
+}, { passive: false });
+
+function moverConToque(e) {
+  if (!juegoActivo || pausado) return;
+  const rect = canvas.getBoundingClientRect();
+  const escala = canvas.width / rect.width;
+  const x = (e.touches[0].clientX - rect.left) * escala;
+  jugador.x = x - jugador.ancho / 2;
+}
+
+function moverConPuntero(e) {
+  if (!juegoActivo || pausado) return;
+  const rect = canvas.getBoundingClientRect();
+  const escala = canvas.width / rect.width;
+  jugador.x = (e.clientX - rect.left) * escala - jugador.ancho / 2;
+}
+
+/* ---------- Botones virtuales de dirección (para celulares) ---------- */
+function configurarBotonDireccion(elemento, tecla) {
+  const activar = (e) => { e.preventDefault(); teclas[tecla] = true; };
+  const desactivar = (e) => { if (e) e.preventDefault(); teclas[tecla] = false; };
+  elemento.addEventListener("touchstart", activar, { passive: false });
+  elemento.addEventListener("touchend", desactivar, { passive: false });
+  elemento.addEventListener("touchcancel", desactivar, { passive: false });
+  elemento.addEventListener("mousedown", activar);
+  elemento.addEventListener("mouseup", desactivar);
+  elemento.addEventListener("mouseleave", desactivar);
+}
+configurarBotonDireccion(document.getElementById("botonIzquierda"), "ArrowLeft");
+configurarBotonDireccion(document.getElementById("botonDerecha"), "ArrowRight");
+
+/* ---------- Pausa automática si el usuario cambia de app/pestaña (importante en móviles) ---------- */
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && juegoActivo && !pausado) {
+    alternarPausa();
+  }
+});
+
+/* ---------- Botones de interfaz principales ---------- */
+document.getElementById("botonEmpezar").addEventListener("click", empezarJuego);
+document.getElementById("botonReintentar").addEventListener("click", empezarJuego);
+document.getElementById("botonReanudar").addEventListener("click", alternarPausa);
+botonPausa.addEventListener("click", alternarPausa);
+
+botonMusica.addEventListener("click", () => {
+  musicaSilenciada = !musicaSilenciada;
+  botonMusica.textContent = musicaSilenciada ? "🔇" : "🎵";
+  botonMusica.classList.toggle("silenciado", musicaSilenciada);
+  botonMusica.title = musicaSilenciada ? "Música silenciada (toca para activar)" : "Silenciar música";
+  if (musicaSilenciada) {
+    musicaFondo.pause();
+  } else if (juegoActivo) {
+    intentarReproducirMusica();
+  }
+});
+
+/* ---------- Botones y lógica de la carta de amor ---------- */
+document.getElementById("tituloMensaje").textContent = TITULO_MENSAJE;
+document.getElementById("textoMensajeAmor").textContent = TEXTO_MENSAJE_AMOR;
+document.getElementById("firmaMensaje").textContent = FIRMA_MENSAJE;
+
+function mostrarMensajeAmor() {
+  const estabaJugando = juegoActivo && !pausado;
+  pantallaMensajeVieneDePausaAutomatica = estabaJugando;
+  if (estabaJugando) {
+    pausado = true;
+    musicaFondo.pause();
+  }
+  pantallaMensaje.classList.remove("oculto");
+}
+
+function cerrarMensajeAmor() {
+  pantallaMensaje.classList.add("oculto");
+  if (pantallaMensajeVieneDePausaAutomatica) {
+    pausado = false;
+    intentarReproducirMusica();
+    requestAnimationFrame(loop);
+  }
+  pantallaMensajeVieneDePausaAutomatica = false;
+}
+
+document.getElementById("botonMensajeTop").addEventListener("click", mostrarMensajeAmor);
+document.getElementById("botonMensajeInicio").addEventListener("click", mostrarMensajeAmor);
+document.getElementById("botonMensajeFin").addEventListener("click", mostrarMensajeAmor);
+document.getElementById("botonCerrarMensaje").addEventListener("click", cerrarMensajeAmor);
+
+/* ---------- Enviar la respuesta de ella por WhatsApp ---------- */
+document.getElementById("botonEnviarRespuesta").addEventListener("click", () => {
+  const campoRespuesta = document.getElementById("textoRespuesta");
+  const texto = campoRespuesta.value.trim();
+  if (!texto) {
+    alert("Escribe algo antes de enviar 💗");
+    return;
+  }
+  const mensajeCodificado = encodeURIComponent(texto);
+  const url = "https://wa.me/" + NUMERO_WHATSAPP + "?text=" + mensajeCodificado;
+  window.open(url, "_blank");
+  campoRespuesta.value = "";
+});
+
+/* ---------- Compartir el puntaje (usa el selector nativo del celular si existe) ---------- */
+document.getElementById("botonCompartir").addEventListener("click", () => {
+  const texto = "¡Atrapé " + puntaje + " corazones para ti! 💕 (mi récord: " + record + ")";
+
+  const copiarTexto = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).catch(() => {});
+    }
+  };
+
+  const abrirWhatsApp = () => {
+    const url = "https://wa.me/?text=" + encodeURIComponent(texto);
+    window.open(url, "_blank");
+  };
+
+  // El selector nativo de compartir solo funciona en un contexto seguro (https, o subido a un hosting).
+  // Si el archivo se abre directo desde la computadora (file://), o el navegador no lo soporta,
+  // usamos un respaldo: copiamos el texto y abrimos WhatsApp, para que nunca se quede sin hacer nada.
+  if (navigator.share && window.isSecureContext) {
+    navigator.share({ text: texto }).catch(() => {
+      copiarTexto();
+      abrirWhatsApp();
+    });
+  } else {
+    copiarTexto();
+    abrirWhatsApp();
+    alert("Copié el mensaje 📋 También lo puedes pegar directo en una historia o DM de Instagram si quieres.");
+  }
+});
+
+function intentarReproducirMusica() {
+  if (musicaSilenciada) return;
+  // Si el archivo de audio no existe, esto simplemente no reproduce nada,
+  // pero no rompe el juego (lo capturamos con .catch).
+  musicaFondo.play().catch(() => {
+    console.warn("No se encontró el archivo de música (o el navegador bloqueó la reproducción). Agrega tu propia canción, con derechos que tú poseas, en la carpeta del juego.");
+  });
+}
+
+/* ---------- Generación de corazones ---------- */
+function crearCorazon() {
+  const esPoder = Math.random() < PROBABILIDAD_PODER;
+  const esVidaExtra = !esPoder && Math.random() < PROBABILIDAD_VIDA_EXTRA;
+  const esDorado = !esPoder && !esVidaExtra && Math.random() < PROBABILIDAD_DORADO;
+  const tipoPoder = esPoder ? TIPOS_PODER[Math.floor(Math.random() * TIPOS_PODER.length)] : null;
+  const nivel = Math.floor(puntaje / PUNTOS_POR_NIVEL);
+  corazones.push({
+    x: Math.random() * (canvas.width - 30),
+    y: -30,
+    velocidad: velocidadBase + nivel * 0.4 + Math.random() * 2,
+    tamano: 28,
+    dorado: esDorado,
+    vidaExtra: esVidaExtra,
+    poder: tipoPoder,
+    balanceo: Math.random() * Math.PI * 2, // para un leve vaivén lateral
+    rotacion: 0,
+    velocidadRotacion: (Math.random() - 0.5) * 0.03 // giro suave, distinto para cada corazón
+  });
+}
+
+function reprogramarSpawns() {
+  if (idIntervaloSpawns) clearInterval(idIntervaloSpawns);
+  const nivel = Math.floor(puntaje / PUNTOS_POR_NIVEL);
+  const intervalo = Math.max(380, 900 - nivel * 60); // cada vez más frecuente
+  idIntervaloSpawns = setInterval(() => {
+    if (juegoActivo && !pausado) crearCorazon();
+  }, intervalo);
+}
+
+/* ---------- Partículas al atrapar un corazón ---------- */
+function crearParticulas(x, y, tipo) {
+  let color;
+  if (tipo === "dorado") color = "255,209,102";
+  else if (tipo === "vida") color = "126,224,138";
+  else color = "255,110,150";
+  const cantidad = tipo === "vida" ? 16 : 10; // la vida extra se siente más especial: más chispas
+  for (let i = 0; i < cantidad; i++) {
+    particulas.push({
+      x, y,
+      vx: (Math.random() - 0.5) * (tipo === "vida" ? 6.5 : 5),
+      vy: (Math.random() - 0.5) * (tipo === "vida" ? 6.5 : 5) - 1,
+      vida: 26,
+      color
+    });
+  }
+}
+
+function actualizarYDibujarParticulas() {
+  for (let i = particulas.length - 1; i >= 0; i--) {
+    const p = particulas[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vida--;
+    if (p.vida <= 0) { particulas.splice(i, 1); continue; }
+    ctx.fillStyle = `rgba(${p.color}, ${p.vida / 26})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* ---------- Texto flotante (ej. "+1 Vida 💚" o "¡Más rápido! 💨") que sube y se desvanece ---------- */
+function crearTextoFlotante(x, y, texto, color) {
+  textosFlotantes.push({ x, y, texto, color, vida: 46 });
+}
+
+function actualizarYDibujarTextosFlotantes() {
+  for (let i = textosFlotantes.length - 1; i >= 0; i--) {
+    const t = textosFlotantes[i];
+    t.y -= 1.1;
+    t.vida--;
+    if (t.vida <= 0) { textosFlotantes.splice(i, 1); continue; }
+    const alpha = Math.min(1, t.vida / 30);
+    ctx.save();
+    ctx.font = "bold 15px 'Trebuchet MS', Arial";
+    ctx.textAlign = "center";
+    ctx.fillStyle = `rgba(${t.color}, ${alpha})`;
+    ctx.fillText(t.texto, t.x, t.y);
+    ctx.restore();
+  }
+}
+
+/* ---------- Onda expansiva (ej. al ganar una vida extra) ---------- */
+function crearOnda(x, y, color) {
+  ondas.push({ x, y, radio: 6, color, alpha: 0.9 });
+}
+
+function actualizarYDibujarOndas() {
+  for (let i = ondas.length - 1; i >= 0; i--) {
+    const o = ondas[i];
+    o.radio += 2.6;
+    o.alpha -= 0.045;
+    if (o.alpha <= 0) { ondas.splice(i, 1); continue; }
+    ctx.save();
+    ctx.strokeStyle = `rgba(${o.color}, ${o.alpha})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.radio, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* ---------- Hace "brincar" el ícono de vidas del panel superior ---------- */
+function pulsarVidasPanel() {
+  elVidasIconos.classList.remove("vidas-pulso");
+  void elVidasIconos.offsetWidth; // fuerza reinicio de la animación si se gana vida varias veces seguidas
+  elVidasIconos.classList.add("vidas-pulso");
+}
+
+/* ---------- Hace "brincar" el puntaje del panel superior (feedback al sumar puntos) ---------- */
+function pulsarPuntajePanel() {
+  elPuntaje.classList.remove("puntaje-pulso");
+  void elPuntaje.offsetWidth;
+  elPuntaje.classList.add("puntaje-pulso");
+}
+
+/* ---------- Corazones cayendo en el fondo de la pantalla de "Perdiste" ---------- */
+function generarCorazonesFondoPerder(esRecord) {
+  const contenedor = document.getElementById("corazonesPerderFondo");
+  if (!contenedor) return;
+  contenedor.innerHTML = "";
+  const simbolos = esRecord ? ["🎉", "✨", "👑", "❤️", "💛"] : ["❤️", "💗", "💔", "💜", "✨"];
+  const cantidad = 12;
+  for (let i = 0; i < cantidad; i++) {
+    const el = document.createElement("span");
+    el.className = "corazon-perder-item";
+    el.textContent = simbolos[Math.floor(Math.random() * simbolos.length)];
+    el.style.left = Math.random() * 90 + "%";
+    el.style.fontSize = (14 + Math.random() * 14) + "px";
+    el.style.animationDuration = (4 + Math.random() * 4) + "s";
+    el.style.animationDelay = (Math.random() * -6) + "s"; // delay negativo: ya vienen "cayendo" desde el inicio
+    contenedor.appendChild(el);
+  }
+}
+
+/* ---------- Medalla según el combo máximo de la partida ---------- */
+function obtenerMedallaCombo(comboMax) {
+  if (comboMax >= 10) return { emoji: "🥇", texto: "Combo de oro" };
+  if (comboMax >= 6)  return { emoji: "🥈", texto: "Combo de plata" };
+  if (comboMax >= 3)  return { emoji: "🥉", texto: "Combo de bronce" };
+  return null;
+}
+
+/* ---------- Unicornio(s) volador(es) a cuerpo completo (solo al superar el récord) ---------- */
+function lanzarUnicornio() {
+  // Evita duplicar si por alguna razón ya hay uno en pantalla
+  document.querySelectorAll(".unicornio-volador").forEach(el => el.remove());
+
+  crearUnicornioVolador("hacia-derecha");
+  crearUnicornioVolador("hacia-izquierda");
+}
+
+function crearUnicornioVolador(direccion) {
+  const unicornio = document.createElement("div");
+  unicornio.className = "unicornio-volador " + direccion;
+
+  const imgUnicornio = document.createElement("img");
+  imgUnicornio.src = RUTA_UNICORNIO;
+  imgUnicornio.alt = "Unicornio";
+  imgUnicornio.onerror = function () {
+    // Si no se encuentra el archivo de imagen, usamos un emoji de respaldo
+    // para que el juego no se vea roto.
+    unicornio.innerHTML = "";
+    unicornio.textContent = "🦄";
+    unicornio.style.fontSize = "56px";
+    unicornio.style.filter = "drop-shadow(0 6px 12px rgba(0,0,0,0.4))";
+    agregarChispas(unicornio);
+  };
+  unicornio.appendChild(imgUnicornio);
+
+  agregarChispas(unicornio);
+
+  document.body.appendChild(unicornio);
+  // Se elimina del DOM solo, apenas termina de volar (no queda basura acumulada)
+  setTimeout(() => unicornio.remove(), 3700);
+}
+
+function agregarChispas(contenedor) {
+  const simbolos = ["✨", "🌈", "💫", "✨", "💗"];
+  simbolos.forEach((simbolo, i) => {
+    const chispa = document.createElement("span");
+    chispa.className = "chispa-unicornio";
+    chispa.textContent = simbolo;
+    chispa.style.animationDelay = (i * 0.12) + "s";
+    contenedor.appendChild(chispa);
+  });
+}
+
+/* ---------- Confeti (para cuando se bate el récord) ---------- */
+function lanzarConfeti() {
+  const colores = ["#e64980", "#ff9ec4", "#ffd166", "#6c3fb5", "#ffffff"];
+  for (let i = 0; i < 60; i++) {
+    const pieza = document.createElement("div");
+    pieza.className = "confeti";
+    const tam = Math.random() * 7 + 4;
+    pieza.style.width = tam + "px";
+    pieza.style.height = tam * 0.6 + "px";
+    pieza.style.left = Math.random() * 100 + "vw";
+    pieza.style.background = colores[Math.floor(Math.random() * colores.length)];
+    const duracion = Math.random() * 1.6 + 1.6;
+    pieza.style.animationDuration = duracion + "s";
+    document.body.appendChild(pieza);
+    setTimeout(() => pieza.remove(), duracion * 1000 + 100);
+  }
+}
+
+/* ---------- Dibujo del jugador ---------- */
+// Ya no hay caja/barra morada ni círculo blanco de fondo: el jugador
+// ES el muñeco (tu foto, o el emoji de respaldo), apoyado directamente
+// sobre el piso del juego.
+function dibujarJugador() {
+  const centroX = jugador.x + jugador.ancho / 2;
+  const centroY = jugador.y + jugador.alto / 2;
+  const radio = jugador.ancho / 2;
+
+  // Sombra suave en el piso, para dar sensación de apoyo (no es una caja, es solo una sombra)
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(centroX, jugador.y + jugador.alto + 3, radio * 0.7, 5, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,0,0,0.25)";
+  ctx.fill();
+  ctx.restore();
+
+  const fotoLista = usarFotoJugador && fotoJugador.complete && fotoJugador.naturalWidth > 0;
+
+  if (fotoLista) {
+    try {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(centroX, centroY, radio, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(fotoJugador, jugador.x, jugador.y, jugador.ancho, jugador.alto);
+      ctx.restore();
+      return;
+    } catch (error) {
+      console.warn("No se pudo dibujar tu foto, usando emoji", error);
+    }
+  }
+
+  ctx.font = (jugador.ancho * 0.7) + "px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("🙋‍♂️", centroX, centroY);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+}
+
+/* ---------- Dibujo de un corazón ---------- */
+function dibujarCorazon(c) {
+  const xVaiven = c.x + Math.sin(c.balanceo) * 4;
+  c.balanceo += 0.05;
+  c.rotacion += c.velocidadRotacion;
+
+  const centroXRot = xVaiven + 14;
+  const centroYRot = c.y + 14;
+
+  ctx.save();
+  ctx.translate(centroXRot, centroYRot);
+  ctx.rotate(c.rotacion);
+  ctx.translate(-centroXRot, -centroYRot);
+
+  if (c.poder) {
+    // Corazón de power-up: imán / congelado / x2
+    const estilos = {
+      iman:      { emoji: "🧲", color: "rgba(224,140,255,0.95)", etiqueta: "Imán" },
+      congelado: { emoji: "❄️", color: "rgba(140,220,255,0.95)", etiqueta: "Frío" },
+      x2:        { emoji: "✨", color: "rgba(255,209,102,0.95)", etiqueta: "x2" }
+    };
+    const estilo = estilos[c.poder];
+    ctx.save();
+    ctx.shadowColor = estilo.color;
+    ctx.shadowBlur = 16;
+    ctx.font = c.tamano + "px Arial";
+    ctx.fillText(estilo.emoji, xVaiven, c.y + 24);
+    ctx.restore();
+    ctx.font = "bold 10px Arial";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(estilo.etiqueta, xVaiven, c.y + 40);
+    ctx.fillStyle = "#000000"; // restaurar color por defecto
+  } else if (c.vidaExtra) {
+    // Corazón de "vida extra": se dibuja distinto (verde, con "+1"), nunca usa la foto
+    ctx.save();
+    ctx.shadowColor = "rgba(126,224,138,0.95)";
+    ctx.shadowBlur = 16;
+    ctx.font = c.tamano + "px Arial";
+    ctx.fillText("💚", xVaiven, c.y + 24);
+    ctx.restore();
+    ctx.font = "bold 12px Arial";
+    ctx.fillStyle = "#eafff0";
+    ctx.fillText("+1", xVaiven + 20, c.y + 12);
+    ctx.fillStyle = "#000000"; // restaurar color por defecto
+  } else {
+    const fotoLista = usarFoto && fotoElla.complete && fotoElla.naturalWidth > 0;
+    let dibujadoConFoto = false;
+
+    if (c.dorado) {
+      ctx.save();
+      ctx.shadowColor = "rgba(255,209,102,0.9)";
+      ctx.shadowBlur = 14;
+    }
+
+    if (fotoLista) {
+      try {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(xVaiven + 14, c.y + 14, 14, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(fotoElla, xVaiven, c.y, 28, 28);
+        ctx.restore();
+        if (c.dorado) {
+          ctx.strokeStyle = "#ffd166";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(xVaiven + 14, c.y + 14, 14, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        dibujadoConFoto = true;
+      } catch (error) {
+        console.warn("No se pudo dibujar la foto del corazón, usando emoji", error);
+      }
+    }
+
+    if (!dibujadoConFoto) {
+      ctx.font = c.tamano + "px Arial";
+      ctx.fillText(c.dorado ? "💛" : "❤️", xVaiven, c.y + 24);
+      ctx.font = "14px Arial";
+      ctx.fillText(c.dorado ? "✨" : caraDentroDelCorazon, xVaiven + 5, c.y + 20);
+    }
+
+    if (c.dorado) ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/* ---------- Marcador ---------- */
+function actualizarMarcador() {
+  elPuntaje.textContent = puntaje;
+  elRecord.textContent = record;
+  document.getElementById("nivelTexto").textContent = Math.floor(puntaje / PUNTOS_POR_NIVEL) + 1;
+
+  elVidasIconos.innerHTML = "";
+  const totalIconos = Math.max(VIDAS_INICIALES, vidas);
+  for (let i = 0; i < totalIconos; i++) {
+    const corazonVida = document.createElement("span");
+    corazonVida.textContent = i < vidas ? "❤️" : "🖤";
+    elVidasIconos.appendChild(corazonVida);
+  }
+
+  if (combo >= 2) {
+    elCombo.style.visibility = "visible";
+    elCombo.textContent = "Combo x" + combo + " 🔥";
+  } else {
+    elCombo.style.visibility = "hidden";
+  }
+
+  actualizarIndicadoresPoder();
+}
+
+/* ---------- Muestra qué power-ups están activos ahora mismo ---------- */
+function actualizarIndicadoresPoder() {
+  const contenedor = document.getElementById("poderesActivos");
+  const ahora = Date.now();
+  let iconos = "";
+  if (ahora < imanActivoHasta) iconos += "🧲";
+  if (ahora < congeladoActivoHasta) iconos += "❄️";
+  if (ahora < x2ActivoHasta) iconos += "✨";
+  contenedor.textContent = iconos;
+}
+
+/* ---------- Bucle principal ---------- */
+function loop() {
+  if (!juegoActivo) return;
+  if (pausado) { requestAnimationFrame(loop); return; }
+
+  try {
+    ctx.save();
+    if (sacudida > 0) {
+      const dx = (Math.random() - 0.5) * sacudida;
+      const dy = (Math.random() - 0.5) * sacudida;
+      ctx.translate(dx, dy);
+      sacudida *= 0.85;
+      if (sacudida < 0.5) sacudida = 0;
+    }
+
+    ctx.clearRect(-20, -20, canvas.width + 40, canvas.height + 40);
+
+    if (teclas["ArrowLeft"]) jugador.x -= jugador.velocidad;
+    if (teclas["ArrowRight"]) jugador.x += jugador.velocidad;
+    jugador.x = Math.max(0, Math.min(canvas.width - jugador.ancho, jugador.x));
+
+    dibujarJugador();
+
+    const ahora = Date.now();
+    const congeladoActivo = ahora < congeladoActivoHasta;
+    const imanActivo = ahora < imanActivoHasta;
+    const x2Activo = ahora < x2ActivoHasta;
+    const jugadorCentroX = jugador.x + jugador.ancho / 2;
+
+    for (let i = corazones.length - 1; i >= 0; i--) {
+      const c = corazones[i];
+
+      // El imán atrae suavemente los corazones hacia el jugador
+      if (imanActivo) {
+        c.x += (jugadorCentroX - 14 - c.x) * 0.06;
+      }
+
+      // El congelado hace que todo caiga más lento mientras esté activo
+      c.y += c.velocidad * (congeladoActivo ? 0.4 : 1);
+      dibujarCorazon(c);
+
+      const tocoAlJugador =
+        c.x < jugador.x + jugador.ancho &&
+        c.x + 28 > jugador.x &&
+        c.y + 28 > jugador.y &&
+        c.y < jugador.y + jugador.alto;
+
+      if (tocoAlJugador) {
+        combo++;
+        if (combo > comboMaximo) comboMaximo = combo;
+        totalCorazonesHistorico++;
+        corazones.splice(i, 1);
+        vibrar(20);
+
+        if (c.poder) {
+          // --- Atrapó un power-up: activa el efecto correspondiente ---
+          crearOnda(c.x + 14, c.y + 14, "255,255,255");
+          crearParticulas(c.x + 14, c.y + 14, "dorado");
+          sonidoPoder(c.poder);
+          pulsarPuntajePanel();
+          if (c.poder === "iman") {
+            imanActivoHasta = Date.now() + DURACION_PODER_MS;
+            crearTextoFlotante(c.x + 14, c.y, "¡Imán activado! 🧲", "224,140,255");
+          } else if (c.poder === "congelado") {
+            congeladoActivoHasta = Date.now() + DURACION_PODER_MS;
+            crearTextoFlotante(c.x + 14, c.y, "¡Todo más lento! ❄️", "140,220,255");
+          } else {
+            x2ActivoHasta = Date.now() + DURACION_PODER_MS;
+            crearTextoFlotante(c.x + 14, c.y, "¡Puntos x2! ✨", "255,209,102");
+          }
+        } else if (c.vidaExtra) {
+          // --- Celebración especial al atrapar una vida extra ---
+          crearOnda(c.x + 14, c.y + 14, "126,224,138");
+          crearOnda(c.x + 14, c.y + 14, "255,255,255"); // segunda onda blanca, un poco detrás, para más "pop"
+          crearParticulas(c.x + 14, c.y + 14, "vida");
+          sonidoVidaExtra();
+          pulsarVidasPanel();
+          vibrar([15, 40, 15]);
+          if (vidas < VIDAS_MAXIMAS) {
+            vidas++;
+            crearTextoFlotante(c.x + 14, c.y, "+1 Vida 💚", "126,224,138");
+          } else {
+            crearTextoFlotante(c.x + 14, c.y, "¡Vidas al máximo! 💚", "126,224,138");
+          }
+        } else {
+          let puntos = (c.dorado ? 3 : 1) + Math.floor(combo / 5);
+          if (x2Activo) puntos *= 2;
+          const nivelAntes = Math.floor(puntaje / PUNTOS_POR_NIVEL);
+          puntaje += puntos;
+          const nivelDespues = Math.floor(puntaje / PUNTOS_POR_NIVEL);
+          crearParticulas(c.x + 14, c.y + 14, c.dorado ? "dorado" : "normal");
+          sonidoAtrapar(c.dorado);
+          pulsarPuntajePanel();
+          if (puntaje > record) {
+            record = puntaje;
+            guardarRecord(record);
+          }
+          if (nivelDespues > nivelAntes) {
+            reprogramarSpawns();
+            sonidoSubeNivel();
+            crearTextoFlotante(jugador.x + jugador.ancho / 2, jugador.y - 6, "¡Más rápido! 💨", "255,158,196");
+          }
+        }
+
+        actualizarMarcador();
+      } else if (c.y > canvas.height) {
+        corazones.splice(i, 1);
+        if (!c.vidaExtra && !c.poder) {
+          // los corazones de vida extra y los power-ups no quitan vida si se escapan
+          vidas--;
+          combo = 0;
+          sacudida = 10;
+          sonidoPerderVida();
+          vibrar([40, 30, 40]);
+          actualizarMarcador();
+          if (vidas <= 0) {
+            ctx.restore();
+            terminarJuego();
+            return;
+          }
+        }
+      }
+    }
+
+    actualizarYDibujarParticulas();
+    actualizarYDibujarOndas();
+    actualizarYDibujarTextosFlotantes();
+    ctx.restore();
+  } catch (error) {
+    console.error("Error en el loop del juego:", error);
+  }
+
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Control de flujo del juego ---------- */
+function empezarJuego() {
+  // Un clic/toque de botón cuenta como "gesto del usuario", así que
+  // aprovechamos para desbloquear el audio en navegadores móviles.
+  obtenerContextoAudio();
+
+  puntaje = 0;
+  vidas = VIDAS_INICIALES;
+  combo = 0;
+  corazones = [];
+  particulas = [];
+  textosFlotantes = [];
+  ondas = [];
+  sacudida = 0;
+  imanActivoHasta = 0;
+  congeladoActivoHasta = 0;
+  x2ActivoHasta = 0;
+  pausado = false;
+  juegoActivo = true;
+  juegoIniciado = true;
+
+  pantallaInicio.classList.add("oculto");
+  overlay.classList.add("oculto");
+  pantallaPausa.classList.add("oculto");
+  pantallaMensaje.classList.add("oculto");
+
+  actualizarMarcador();
+  reprogramarSpawns();
+  intentarReproducirMusica();
+  loop();
+}
+
+function terminarJuego() {
+  juegoActivo = false;
+  if (idIntervaloSpawns) clearInterval(idIntervaloSpawns);
+  musicaFondo.pause();
+
+  const huboRecordNuevo = puntaje >= record && puntaje > 0;
+  sonidoFinDeJuego(huboRecordNuevo);
+
+  const elTituloResultado = document.getElementById("tituloResultado");
+  const elCoronaRecord = document.getElementById("coronaRecord");
+  const elCorazonRotoWrap = document.getElementById("corazonRotoWrap");
+  const tarjetaOverlay = overlay.querySelector(".tarjeta");
+
+  if (huboRecordNuevo) {
+    // Pantalla festiva: ya no dice "Perdiste" en ningún lado
+    elTituloResultado.textContent = "¡Superaste tu récord! 🎉";
+    elCoronaRecord.classList.remove("oculto");
+    elCorazonRotoWrap.classList.add("oculto");
+    overlay.classList.add("es-record");
+    tarjetaOverlay.classList.add("tarjeta-record");
+  } else {
+    elTituloResultado.textContent = "Perdiste 😢";
+    elCoronaRecord.classList.add("oculto");
+    elCorazonRotoWrap.classList.remove("oculto");
+    overlay.classList.remove("es-record");
+    tarjetaOverlay.classList.remove("tarjeta-record");
+  }
+
+  document.getElementById("textoAlerta").textContent = obtenerMensajeFinal(puntaje);
+  const elTextoRecord = document.getElementById("textoRecord");
+  elTextoRecord.textContent = huboRecordNuevo
+    ? "¡Nuevo récord de la sesión! 🎉 (combo máximo: x" + comboMaximo + ")"
+    : "Récord de esta sesión: " + record + " (combo máximo: x" + comboMaximo + ")";
+
+  // Corazones cayendo de fondo, nuevos en cada partida (festivos si hubo récord)
+  generarCorazonesFondoPerder(huboRecordNuevo);
+
+  // Corazón roto que se "repara" solo, solo cuando NO hubo récord
+  if (!huboRecordNuevo) {
+    const corazonRoto = document.getElementById("corazonRotoSvg");
+    if (corazonRoto) {
+      corazonRoto.classList.remove("reparado");
+      void corazonRoto.offsetWidth; // fuerza reinicio de la animación si se pierde varias veces
+      setTimeout(() => corazonRoto.classList.add("reparado"), 250);
+    }
+  }
+
+  // Medalla según el mejor combo logrado en esta partida
+  const medalla = obtenerMedallaCombo(comboMaximo);
+  const contenedorMedalla = document.getElementById("medallaComboContenedor");
+  if (contenedorMedalla) {
+    contenedorMedalla.innerHTML = medalla
+      ? '<span class="medalla-combo">' + medalla.emoji + " " + medalla.texto + " (x" + comboMaximo + ")</span>"
+      : "";
+  }
+
+  overlay.classList.remove("oculto");
+
+  if (huboRecordNuevo) {
+    lanzarConfeti();
+    lanzarUnicornio();
+  }
+
+  if (MOSTRAR_MENSAJE_AUTOMATICO_AL_PERDER && !yaSeMostroMensajeAutomatico) {
+    yaSeMostroMensajeAutomatico = true;
+    setTimeout(() => {
+      pantallaMensajeVieneDePausaAutomatica = false; // el juego ya terminó, no hay nada que reanudar
+      pantallaMensaje.classList.remove("oculto");
+    }, 900);
+  }
+}
+
+function alternarPausa() {
+  if (!juegoIniciado || !juegoActivo) return;
+  pausado = !pausado;
+  botonPausa.textContent = pausado ? "▶️" : "⏸️";
+  pantallaPausa.classList.toggle("oculto", !pausado);
+  if (pausado) {
+    musicaFondo.pause();
+  } else {
+    intentarReproducirMusica();
+    requestAnimationFrame(loop);
+  }
+}
+
+/* ---------- Corazoncitos flotando muy lento de fondo (decorativo) ---------- */
+function crearCorazonesFlotantesFondo() {
+  const cantidad = window.innerWidth < 480 ? 8 : 12; // pocos, para no afectar el rendimiento
+  const simbolos = ["❤️", "💗", "💕"];
+  for (let i = 0; i < cantidad; i++) {
+    const el = document.createElement("span");
+    el.className = "corazon-flotante-fondo";
+    el.textContent = simbolos[Math.floor(Math.random() * simbolos.length)];
+    el.style.left = Math.random() * 100 + "vw";
+    el.style.fontSize = (16 + Math.random() * 18) + "px";
+    el.style.animationDuration = (14 + Math.random() * 10) + "s";
+    el.style.animationDelay = (Math.random() * -20) + "s";
+    document.body.appendChild(el);
+  }
+}
+crearCorazonesFlotantesFondo();
+
+/* ---------- Estrellitas decorativas de fondo ---------- */
+function crearEstrellas() {
+  const cantidad = window.innerWidth < 480 ? 26 : 40; // menos estrellas en pantallas chicas, por rendimiento
+  for (let i = 0; i < cantidad; i++) {
+    const estrella = document.createElement("div");
+    estrella.className = "estrella";
+    const tam = Math.random() * 2 + 1;
+    estrella.style.width = tam + "px";
+    estrella.style.height = tam + "px";
+    estrella.style.left = Math.random() * 100 + "vw";
+    estrella.style.top = Math.random() * 100 + "vh";
+    estrella.style.animationDelay = (Math.random() * 3) + "s";
+    document.body.appendChild(estrella);
+  }
+}
+crearEstrellas();
+
+// Muestra el récord guardado (si hay uno) en la pantalla de inicio
+const elRecordInicio = document.getElementById("recordGuardadoTexto");
+if (elRecordInicio) {
+  elRecordInicio.textContent = record > 0 ? "Tu récord guardado: " + record + " 💕" : "";
+}
+
+// Estado inicial del marcador (antes de que empiece el juego)
+actualizarMarcador();
+</script>
+</body>
+</html>
